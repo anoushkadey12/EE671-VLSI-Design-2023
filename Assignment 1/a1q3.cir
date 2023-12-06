@@ -1,0 +1,87 @@
+Question 3
+.include models-180nm
+*Name: Anoushka Dey
+*Roll 210010010 :  nn = 10
+
+*Rise and Fall times to achieve: 200+2*10=220 ps
+
+*Parameters
+*geometry parameters
+.param pw = 1.865U
+.param pl = 0.18U
+.param pad = {2*pw*pl}
+.param pas = {2*pw*pl}
+.param ppd = {2*(pw + 2*pl)}
+.param pps = {2*(pw + 2*pl)}
+
+.param nw = 0.6465U
+.param nl = 0.18U
+.param nad = {2*nw*nl}
+.param nas = {2*nw*nl}
+.param npd = {2*(nw + 2*nl)}
+.param nps = {2*(nw + 2*nl)}
+
+* Minimum Inverter
+.subckt inv supply Inp Output
+*  This subcircuit defines a CMOS inverter with equal n and p widths
+MP1 Output Inp Supply Supply cmosp
++ L={pl} W={pw} AD={pad} AS={pas} PD={ppd} PS={pps}
+MN1 Output Inp 0      0      cmosn
++ L={nl} W={nw} AD={nad} AS={nas} PD={npd} PS={nps}
+.ends
+
+.subckt cmoslogic supply A B C Output
+MP1 Output A supply supply cmosp
++ L={pl} W={pw} AD={pad} AS={pas} PD={ppd} PS={pps}
+MP2 node1 B supply supply cmosp
++ L={pl} W={pw} AD={pad} AS={pas} PD={ppd} PS={pps}
+MP3 Output C node1 node1 cmosp
++ L={pl} W={pw} AD={pad} AS={pas} PD={ppd} PS={pps}
+
+MN1 Output A node2 node2 cmosn
++ L={nl} W={nw} AD={nad} AS={nas} PD={npd} PS={nps}
+MN2 node2 B 0 0 cmosn
++ L={nl} W={nw} AD={nad} AS={nas} PD={npd} PS={nps}
+MN3 node2 C 0 0 cmosn
++ L={nl} W={nw} AD={nad} AS={nas} PD={npd} PS={nps}
+.ends
+vdd supply 0 dc 1.8
+* device under test
+x3 supply A B C dutout cmoslogic
+* load capacitor
+C3 dutout 0 0.05pF
+
+
+*Part a
+*Rise time=510.73ps
+*Fall time=408.87ps
+*VC C 0 DC 0 PULSE(0.18 1.62 0nS 20pS 20pS 4nS 8nS)
+*VA A 0 DC 1.62
+*VB B 0 DC 0.18
+
+*Part b
+*Rise time=510.74ps
+*Fall time=424.45ps
+*VB B 0 DC 0 PULSE(0.18 1.62 0nS 20pS 20pS 4nS 8nS)
+*VA A 0 DC 1.62
+*VC C 0 DC 0.18
+
+*Part c
+*Rise time=274.43ps
+*Fall time=408.81ps
+VA A 0 DC 0 PULSE(0.18 1.62 0nS 20pS 20pS 4nS 8nS)
+VC C 0 DC 1.62
+VB B 0 DC 0.18
+
+
+*transient analysis
+.tran 1pS 35nS 0nS
+.control
+run
+plot 4.0+V(A) 8.0+V(B) 12.0+V(C) V(dutout)
+
+* output 10% - 80% rise and fall time
+meas tran outrise TRIG v(dutout) VAL=0.18 RISE=2 TARG v(dutout) VAL=1.62 RISE=2
+meas tran outfall TRIG v(dutout) VAL=1.62 FALL=2 TARG v(dutout) VAL=0.18 FALL=2
+.endc
+.end

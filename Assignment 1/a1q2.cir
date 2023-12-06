@@ -1,0 +1,63 @@
+Question 2
+.include models-180nm
+*Name: Anoushka Dey
+*Roll 210010010 :  nn = 10
+
+*Rise and Fall times to achieve: 200+2*10=220 ps
+
+*Parameters
+*geometry parameters
+.param pw = 1.865U
+.param pl = 0.18U
+.param pad = {2*pw*pl}
+.param pas = {2*pw*pl}
+.param ppd = {2*(pw + 2*pl)}
+.param pps = {2*(pw + 2*pl)}
+
+.param nw = 0.6465U
+.param nl = 0.18U
+.param nad = {2*nw*nl}
+.param nas = {2*nw*nl}
+.param npd = {2*(nw + 2*nl)}
+.param nps = {2*(nw + 2*nl)}
+
+* Minimum Inverter
+.subckt inv supply Inp Output
+*  This subcircuit defines a CMOS inverter with equal n and p widths
+MP1 Output Inp Supply Supply cmosp
++ L={pl} W={pw} AD={pad} AS={pas} PD={ppd} PS={pps}
+MN1 Output Inp 0      0      cmosn
++ L={nl} W={nw} AD={nad} AS={nas} PD={npd} PS={nps}
+.ends
+
+vdd supply 0 dc 1.8
+
+*  Device under test
+x3  supply Ck dutout inv
+
+* Load Capacitor
+C3 dutout 0 0.05pF
+
+
+*TRANSIENT ANALYSIS with pulse inputs
+VCk  Ck   0 DC 
+.dc VCk 0 1.8 0.001
+.control
+run
+plot V(dutout) vs V(Ck)
+
+let dVout = deriv(V(dutout))
+meas dc VIL find V(Ck) when dVout=-1
+meas dc VIH find V(Ck) when dVout = -1 rise=last
+meas dc VOH find V(dutout) when V(ck) = VIL
+meas dc VOL find V(dutout) when V(ck) = VIH
+
+let hnoisemarg= VOH - VIH
+let lonoisemarg = VIL - VOL
+*High noise margin= 0.714V
+*Low noise margin= 0.602V
+
+print hnoisemarg
+print lonoisemarg
+.endc
+.end
