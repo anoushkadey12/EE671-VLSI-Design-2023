@@ -1,33 +1,44 @@
 library std;
 use std.textio.all;
 
-library IEEE;
-use IEEE.std_logic_1164.all;
+library ieee;
+use ieee.std_logic_1164.all;
 
 entity Testbench is
 end entity;
-
 architecture Behave of Testbench is
 
+  ----------------------------------------------------------------
+  --  edit the following lines to set the number of i/o's of your
+  --  DUT.
+  ----------------------------------------------------------------
+  constant number_of_inputs  : integer := 64;  -- # input bits to your design.
+  constant number_of_outputs : integer := 33;  -- # output bits from your design.
+  ----------------------------------------------------------------
+  ----------------------------------------------------------------
 
---Component Declaration
-component macdadda is
-port(A,B: in std_logic_vector(15 downto 0); C: in std_logic_vector(31 downto 0); S: out std_logic_vector(31 downto 0); Cout: out std_logic);
-end component macdadda;
+  -- Note that you will have to wrap your design into the DUT
+  -- as indicated in class.
+  component DUT is
+   port(input_vector: in std_logic_vector(number_of_inputs-1 downto 0);    
+       	output_vector: out std_logic_vector(number_of_outputs-1 downto 0));
+  end component;
 
---Signal Declaration
-signal input_vector: std_logic_vector(63 downto 0);--Consists of A, B and C
-signal output_vector:std_logic_vector(32 downto 0);--Consists of Cout and S
 
-function to_string(x: string) return string is
+  signal input_vector  : std_logic_vector(number_of_inputs-1 downto 0);
+  signal output_vector : std_logic_vector(number_of_outputs-1 downto 0);
+
+  -- create a constrained string
+  function to_string(x: string) return string is
       variable ret_val: string(1 to x'length);
       alias lx : string (1 to x'length) is x;
   begin  
       ret_val := lx;
       return(ret_val);
   end to_string;
--- Bit vector to std_logic_vector and vice-versa
-function to_std_logic_vector(x: bit_vector) return std_logic_vector is
+
+  -- bit-vector to std-logic-vector and vice-versa
+  function to_std_logic_vector(x: bit_vector) return std_logic_vector is
      alias lx: bit_vector(1 to x'length) is x;
      variable ret_val: std_logic_vector(1 to x'length);
   begin
@@ -41,7 +52,7 @@ function to_std_logic_vector(x: bit_vector) return std_logic_vector is
      return ret_val;
   end to_std_logic_vector;
 
-function to_bit_vector(x: std_logic_vector) return bit_vector is
+  function to_bit_vector(x: std_logic_vector) return bit_vector is
      alias lx: std_logic_vector(1 to x'length) is x;
      variable ret_val: bit_vector(1 to x'length);
   begin
@@ -56,50 +67,74 @@ function to_bit_vector(x: std_logic_vector) return bit_vector is
   end to_bit_vector;
 
 begin
-dut:macdadda
-port map(A=>input_vector(63 downto 48), B=>input_vector(47 downto 32), C=> input_vector(31 downto 0), S=>output_vector(31 downto 0),
-Cout=>output_vector(32));
+  process 
+    variable err_flag : boolean := false;
+    File INFILE: text open read_mode is "testcases.txt";
+    FILE OUTFILE: text  open write_mode is "outputs.txt";
 
-main:process
-file infile: text open read_mode is "testcases.txt";
-file outfile: text open write_mode is "results.txt";
+    -- bit-vectors are read from the file.
+    variable input_vector_var: bit_vector (number_of_inputs-1 downto 0);
+    variable output_vector_var: bit_vector (number_of_outputs-1 downto 0);
+    variable output_mask_var: bit_vector (number_of_outputs-1 downto 0);
 
-variable invar:bit_vector(63 downto 0);
-variable outvar: bit_vector(32 downto 0);
-variable flag: boolean:=true;
-variable testcase: integer:=0;
-variable inp_line:Line;
-variable out_line:Line;
+    -- for comparison of output with expected-output
+    variable output_comp_var: std_logic_vector (number_of_outputs-1 downto 0);
+    constant ZZZZ : std_logic_vector(number_of_outputs-1 downto 0) := (others => '0');
 
-begin
-while not endfile(infile) loop
-	testcase:=testcase+1;
-	readLine(infile,inp_line);
-	read(inp_line,invar);
-	read(inp_line,outvar);
+    -- for read/write.
+    variable INPUT_LINE: Line;
+    variable OUTPUT_LINE: Line;
+    variable LINE_COUNT: integer := 0;
+
+    
+  begin
+    while not endfile(INFILE) loop 
+	  -- will read a new line every 5ns, apply input,
+	  -- wait for 1 ns for circuit to settle.
+	  -- read output.
+
+
+          LINE_COUNT := LINE_COUNT + 1;
+
+
+	  -- read input at current time.
+	  readLine (INFILE, INPUT_LINE);
+          read (INPUT_LINE, input_vector_var);
+          read (INPUT_LINE, output_vector_var);
+          read (INPUT_LINE, output_mask_var);
 	
-	input_vector<=to_std_logic_vector(invar);
-	wait for 10 ns;
-	
-	if(output_vector=to_std_logic_vector(outvar)) then
-		flag:=flag and true;
-	else
-		flag:=false;
-		write(out_line,to_string("Error: Testcase "& integer'image(testcase)));
-		writeline(outfile,out_line);
-	end if;
-	
-	write(out_line,to_bit_vector(input_vector));
-	write(out_line,to_string(" "));
-	write(out_line, to_bit_vector(output_vector));
-	writeline(outfile,out_line);
-	wait for 5 ns;
-end loop;
+	  -- apply input.
+          input_vector <= to_std_logic_vector(input_vector_var);
 
- assert (flag) report "SUCCESS, All Testcases out of " & integer'image(testcase) & " Passed!" severity note;
- assert (not flag) report "FAILURE, Few Testcases out of " & integer'image(testcase) & " Failed" severity error;
-report "Design verification completed";
-wait;
+	  -- wait for the circuit to settle 
+	  wait for 15 ns;
 
-end process;
-end;
+	  -- check output.
+          output_comp_var := (to_std_logic_vector(output_mask_var) and 
+					(output_vector xor to_std_logic_vector(output_vector_var)));
+	  if (output_comp_var  /= ZZZZ) then
+             write(OUTPUT_LINE,to_string("ERROR: line "));
+             write(OUTPUT_LINE, LINE_COUNT);
+             writeline(OUTFILE, OUTPUT_LINE);
+             err_flag := true;
+          end if;
+
+          write(OUTPUT_LINE, to_bit_vector(input_vector));
+          write(OUTPUT_LINE, to_string(" "));
+          write(OUTPUT_LINE, to_bit_vector(output_vector));
+          writeline(OUTFILE, OUTPUT_LINE);
+
+	  -- advance time by 4 ns.
+	  wait for 4 ns;
+    end loop;
+
+    assert (err_flag) report "SUCCESS, all tests passed." severity note;
+    assert (not err_flag) report "FAILURE, some tests failed." severity error;
+
+    wait;
+  end process;
+
+  dut_instance: DUT 
+     	port map(input_vector => input_vector, output_vector => output_vector);
+
+end Behave;
